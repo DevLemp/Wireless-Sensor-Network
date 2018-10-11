@@ -1,0 +1,75 @@
+#include <SPI.h> //Call SPI library so you can communicate with the nRF24L01+
+#include <nRF24L01.h> //nRF2401 libarary found at https://github.com/tmrh20/RF24/
+#include <RF24.h> //nRF2401 libarary found at https://github.com/tmrh20/RF24/
+
+const uint8_t pinCE = 9; //This pin is used to set the nRF24 to standby (0) or active mode (1)
+const uint8_t pinCSN = 10; //This pin is used to tell the nRF24 whether the SPI communication is a command
+RF24 wirelessSPI(pinCE, pinCSN); // Declare object from nRF24 library (Create your wireless SPI) 
+const uint64_t wAddress = 0xB00B1E50C3LL;  //Create pipe address to send data, the "LL" is for LongLong type
+const uint8_t rFChan = 89; //Set channel default (chan 84 is 2.484GHz to 2.489GHz)
+const uint8_t rDelay = 7; //this is based on 250us increments, 0 is 250us so 7 is 2 ms
+const uint8_t rNum = 5; //number of retries that will be attempted 
+const uint8_t chan1 = 2; //D2 pin for node channel check
+const uint8_t chan2 = 3; //D3 pin for node channel check
+const uint8_t chan3 = 4; //D4 pin for node channel check
+ 
+int ledPin = 13;                // choose the pin for the LED
+int inputPin = 2;               // choose the input pin (for PIR sensor)
+int pirState = LOW;             // we start, assuming no motion detected
+int val = 0;                    // variable for reading the pin status
+char motion_old = 0;
+
+void setup() {
+  
+  pinMode(ledPin, OUTPUT);      // declare LED as output
+  pinMode(inputPin, INPUT);     // declare sensor as input
+  pinMode(chan1,INPUT_PULLUP); //set channel select digital pins to input pullup
+  pinMode(chan2,INPUT_PULLUP);
+  pinMode(chan3,INPUT_PULLUP);
+  wirelessSPI.begin();  //Start the nRF24 module
+  wirelessSPI.setChannel(rFChan); 
+  wirelessSPI.setRetries(rDelay,rNum); //if a transmit fails to reach receiver (no ack packet) then this sets retry attempts and delay between retries   
+  wirelessSPI.openWritingPipe(wAddress); //open writing or transmit pipe
+  wirelessSPI.stopListening(); //go into transmit mode
+  setChannel();  //checks current channel setting for transceiver
+}
+
+struct package
+  {
+    uint8_t chan;
+    uint8_t sensor;
+  };
+
+typedef struct package Package;
+Package data;
+ 
+void loop(){
+  val = digitalRead(inputPin);  // read input value
+  if (val == HIGH) {            // check if the input is HIGH
+    digitalWrite(ledPin, HIGH);  // turn LED ON
+    if (pirState == LOW) {
+      // we have just turned on
+      data.sensor = "Motion detected!";
+      // We only want to print on the output change, not state
+      pirState = HIGH;
+    }
+  } else {
+    digitalWrite(ledPin, LOW); // turn LED OFF
+    if (pirState == HIGH){
+      // we have just turned of
+      data.sensor = "Motion ended!";
+      // We only want to print on the output change, not state
+      pirState = LOW;
+    }
+  }
+  wirelessSPI.write(&data,sizeof(data));
+  motion_old = data.sensor;
+}
+
+//check for low digital pin to set node address
+void setChannel() {
+  if(!digitalRead(chan1)) data.chan = 1;
+  else if(!digitalRead(chan2)) data.chan = 2;
+  else if(!digitalRead(chan3)) data.chan = 3;
+  else data.chan = 0;
+}
