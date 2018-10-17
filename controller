@@ -1,9 +1,14 @@
+#define _DISABLE_TLS_
 #include <SPI.h> //Call SPI library so you can communicate with the nRF24L01+
 #include <nRF24L01.h> //nRF2401 libarary found at https://github.com/tmrh20/RF24/
 #include <RF24.h> //nRF2401 libarary found at https://github.com/tmrh20/RF24/
+#include <WiFi101.h>
+#include <ThingerWifi101.h>
 
-const uint8_t pinCE = 9; //This pin is used to set the nRF24 to standby (0) or active mode (1)
-const uint8_t pinCSN = 10; //This pin is used for SPI comm chip select
+ThingerWifi101 thing("xlemperos", "Genuino", "ptixiaki2018");
+
+const uint8_t pinCE = 14; //This pin is used to set the nRF24 to standby (0) or active mode (1)
+const uint8_t pinCSN = 13; //This pin is used for SPI comm chip select
 RF24 wirelessSPI(pinCE, pinCSN); // Declare object from nRF24 library (Create your wireless SPI) 
 const uint64_t rAddress = 0xB00B1E50C3LL;  //Create pipe address for the network and notice I spelled boobies because I am mature, the "LL" is for LongLong type
 const uint8_t rFChan = 89; //Set channel frequency default (chan 84 is 2.484GHz to 2.489GHz)
@@ -20,24 +25,32 @@ struct package
   Package data;
 
 void setup() {
+  thing.add_wifi("1516B", "u@sN3ctIo7");
   wirelessSPI.begin();  //Start the nRF24 module
   wirelessSPI.setChannel(rFChan); //set communication frequency channel
   wirelessSPI.openReadingPipe(1,rAddress);  //This is receiver or master so we need to be ready to read data from transmitters
   wirelessSPI.startListening();    // Start listening for messages
   Serial.begin(115200);  //serial port to display received data
-  Serial.println("Network master is online...");          
+  Serial.println("Network master is online...");
+  thing["TempHum"] >> [](pson &out){ 
+    out["temperature"] = data.temperature;
+    out["humidity"] = data.humidity;
+  };          
 
   }
 
 void loop() {
-
+  thing.handle();
   if(wirelessSPI.available()){ //Check if recieved data
      wirelessSPI.read(&data, sizeof(data)); //read packet of data and store it in struct object
      Serial.print("Received data packet from node: ");
      Serial.println(data.chan); //print node number or channel
      Serial.print("Node sensor value is: ");
      Serial.println(data.sensor); //print node's sensor value
-     Serial.println(); 
+     Serial.println();
+     thing.stream("TempHum");
+   
+   
   }
 
 }
